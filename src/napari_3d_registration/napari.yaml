@@ -2,20 +2,9 @@ name: napari-3D-registration
 display_name: napari 3D registration
 contributions:
   commands:
-    - id: napari-3D-registration.make_qwidget
-      python_name: napari_3d_registration._widget:ExampleQWidget
-      title: Make example QWidget
-    - id: napari-3D-registration.make_magic_widget
-      python_name: napari_3d_registration._widget:example_magic_widget
-      title: Make example magic widget
-    - id: napari-3D-registration.make_func_widget
-      python_name: napari_3d_registration._widget:example_function_widget
-      title: Make example function widget
+    - id: napari-3D-registration.registration_widget
+      python_name: napari_3d_registration._widget:RegistrationWidget
+      title: Make 3D registration widget  
   widgets:
-    - command: napari-3D-registration.make_qwidget
-      display_name: Example QWidget
-    - command: napari-3D-registration.make_magic_widget
-      display_name: Example Magic Widget
-    - command: napari-3D-registration.make_func_widget
-      autogenerate: true
-      display_name: Example Function Widget
+    - command: napari-3D-registration.registration_widget
+      display_name: Time registration
