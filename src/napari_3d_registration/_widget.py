@@ -14,42 +14,38 @@ from registrationtools import SpatialRegistration, TimeRegistration
 from pathlib import Path
 from IO import imread
 
-# from registrationtools import TimeRegistration, image_path, json_path_time
-from shutil import rmtree
-
-
-class RegistrationWidget(QWidget):
+class TimeRegistrationWidget(QWidget):
     @property
     def parameters(self):
-        if not hasattr(self, "_parameters"):
-            self._parameters = {
-                "path_to_data": self.path_data_file.value,
-                "file_name": self.file_format.value,
-                "trsf_folder": self.trsf_folder.value,
-                "output_format": self.output_path.value,
-                "projection_path": self.projection_path.value,
-                "check_TP": 0,
-                "path_to_bin": "",
-                "voxel_size": [
-                    self.x_vox.value,
-                    self.y_vox.value,
-                    self.z_vox.value,
-                ],
-                "first": self.first_tp.value,
-                "last": self.last_tp.value,
-                "not_to_do": self.no_tp.value,
-                "compute_trsf": self.compute_trsf.value,
-                "ref_TP": self.ref_tp.value,
-                "trsf_type": self.trsf_type.value,
-                "padding": self.padding.value,
-                "recompute": self.recompute.value,
-                "pre_2D": self.pre2D.value,
-                "low_th": self.low_th.value,
-                "registration_depth_end": self.reg_depth.value,
-                "apply_trsf": self.apply_trsfs.value,
-                "time_tag": "",
-                "out_bdv": "",
-            }
+        self._parameters = {
+            "path_to_data": self.path_data_file.value,
+            "file_name": self.file_format.value,
+            "trsf_folder": self.trsf_folder.value,
+            "output_format": self.output_path.value,
+            "projection_path": self.projection_path.value,
+            "check_TP": 0,
+            "path_to_bin": "",
+            "voxel_size": [
+                self.x_vox.value,
+                self.y_vox.value,
+                self.z_vox.value,
+            ],
+            "first": self.first_tp.value,
+            "last": self.last_tp.value,
+            "not_to_do": self.no_tp.value,
+            "compute_trsf": self.compute_trsf.value,
+            "ref_TP": self.ref_tp.value,
+            "trsf_type": self.trsf_type.value,
+            "padding": self.padding.value,
+            "recompute": self.recompute.value,
+            "pre_2D": self.pre2D.value,
+            "low_th": self.low_th.value,
+            "registration_depth_end": self.reg_depth_end,
+            "registration_depth_start": self.reg_depth_start,
+            "apply_trsf": self.apply_trsfs.value,
+            "time_tag": "",
+            "out_bdv": "",
+        }
         return self._parameters
 
     def make_file_search(self, label, filter, where=None, default=None):
@@ -104,6 +100,7 @@ class RegistrationWidget(QWidget):
         super().__init__()
         self.viewer = napari_viewer
 
+        ## json file parameterization:
         json = self.make_file_search("Parameter file", "*.json", "json_file")
         start_reg = self.make_button("Run!", self._on_click_file)
         file_params = widgets.Container(
@@ -111,6 +108,9 @@ class RegistrationWidget(QWidget):
         )
         file_params.native.layout().addStretch(1)
 
+
+        ## Manual parameterization
+        ### Paths definition
         path_data = self.make_file_search(
             label="Path to images", filter=None, where="path_data_file"
         )
@@ -131,24 +131,47 @@ class RegistrationWidget(QWidget):
         projection_path = self.make_file_search(
             label="Path to projection", filter="", where="projection_path"
         )
-
+        path_tab = widgets.Container(
+            widgets=[
+                path_data,
+                file_name,
+                trsf_folder,
+                output_path,
+                projection_path
+            ],
+            labels=False
+        )
+        ### Geometry definition
         vox_label = widgets.Label(value="Voxel size")
+        x_label = widgets.Label(value='x')
         self.x_vox = widgets.FloatText(value=1)
+        y_label = widgets.Label(value='y')
         self.y_vox = widgets.FloatText(value=1)
+        z_label = widgets.Label(value='z')
         self.z_vox = widgets.FloatText(value=6)
         resolution = widgets.Container(
             widgets=[
+                x_label,
                 self.x_vox,
+                y_label,
                 self.y_vox,
+                z_label,
                 self.z_vox,
             ],
-            layout="horizontal",
+            layout="vertical",
             labels=False,
         )
         vox_res = widgets.Container(
             widgets=[vox_label, resolution], labels=False
         )
+        geometry_tab = widgets.Container(
+            widgets=[
+                vox_res
+            ],
+            labels=False
+        )
 
+        ### Time definition
         first_tp_label = widgets.Label(value="First time point:")
         self.first_tp = widgets.IntText(value=0)
         f_tp = widgets.Container(
@@ -173,6 +196,16 @@ class RegistrationWidget(QWidget):
             labels=False,
         )
 
+        time_tab = widgets.Container(
+            widgets=[
+                f_tp,
+                l_tp,
+                r_tp
+            ],
+            labels=False
+        )
+        
+        ### Trsf parameterization
         trsf_type_label = widgets.Label(value="Transformation type")
         self.trsf_type = widgets.ComboBox(
             value="rigid", choices=["rigid", "affine"]
@@ -180,67 +213,80 @@ class RegistrationWidget(QWidget):
         trsf_type = widgets.Container(
             widgets=[trsf_type_label, self.trsf_type], labels=False
         )
-
-        all = widgets.Container(
-            widgets=[
-                path_data,
-                file_name,
-                trsf_folder,
-                output_path,
-                projection_path,
-                vox_res,
-                f_tp,
-                l_tp,
-                r_tp,
-                trsf_type,
-            ]
-        )
-
-        no_tp = self.make_text_edit("Time points to skip:", "no_tp", "[]")
+        
         compute_trsf = self.make_tick_box(
             "Compute trsf", True, where="compute_trsf"
         )
         padding = self.make_tick_box("Padding", True, where="padding")
-        recompute = self.make_tick_box("Recompute", True, where="recompute")
-        pre2D = self.make_tick_box("Pre 2D registration", True, where="pre2D")
-        low_th = self.make_tick_box("Low threshold", True, where="low_th")
-        low_th = self.make_tick_box("Low threshold", True, where="low_th")
+        recompute = self.make_tick_box("Force recompute", True, where="recompute")
         apply_trsf = self.make_tick_box(
             "Apply Trsf", True, where="apply_trsfs"
         )
+        
+        trsf_tab = widgets.Container(
+            widgets=[
+                trsf_type,
+                compute_trsf,
+                padding,
+                apply_trsf,
+                recompute
+            ],
+            labels=False
+        )
 
-        reg_depth_label = widgets.Label(value="Registration depth:")
-        self.reg_depth = widgets.IntText(value=1)
-        r_depth = widgets.Container(
-            widgets=[reg_depth_label, self.reg_depth],
+        ### Advanced parameterization
+        no_tp = self.make_text_edit("Time points to skip:", "no_tp", "[]")
+        pre2D = self.make_tick_box("Pre 2D registration", True, where="pre2D")
+        low_th = self.make_tick_box("Low threshold", True, where="low_th")
+        low_th_value_label = widgets.Label(value="Low threshold value:")
+        self.low_th_val = widgets.IntText(value=250)
+        low_th_value = widgets.Container(
+            widgets=[low_th_value_label, self.low_th_val],
+            layout="horizontal",
+            labels=False,
+        )
+        reg_depth_label_start = widgets.Label(value="Registration depth start:")
+        self.reg_depth_start = widgets.IntText(value=3)
+        r_depth_start = widgets.Container(
+            widgets=[reg_depth_label_start, self.reg_depth_start],
+            layout="horizontal",
+            labels=False,
+        )
+        reg_depth_label_end = widgets.Label(value="Registration depth end:")
+        self.reg_depth_end = widgets.IntText(value=3)
+        r_depth_end = widgets.Container(
+            widgets=[reg_depth_label_end, self.reg_depth_end],
             layout="horizontal",
             labels=False,
         )
 
-        advanced = widgets.Container(
+        advanced_tab = widgets.Container(
             widgets=[
                 no_tp,
-                compute_trsf,
-                padding,
-                recompute,
                 pre2D,
                 low_th,
-                apply_trsf,
-                r_depth,
-            ]
+                low_th_value,
+                r_depth_start,
+                r_depth_end,
+            ],
+            labels=False
         )
-
+        
+        plot_trsf = self.make_tick_box("Plot trsf before apply", True, where="plot_trsf")
         start_reg_manual = self.make_button("Run!", self._on_click_manual)
 
         tab_controls = QTabWidget()
         tab_controls.addTab(file_params.native, "From File")
 
         sub_tab = QTabWidget()
-        sub_tab.addTab(all.native, "Main parameters")
-        sub_tab.addTab(advanced.native, "Advanced parameters")
+        sub_tab.addTab(path_tab.native, "Paths")
+        sub_tab.addTab(trsf_tab.native, "Trsf")
+        sub_tab.addTab(geometry_tab.native, "Geometry")
+        sub_tab.addTab(time_tab.native, "Time")
+        sub_tab.addTab(advanced_tab.native, "Advanced")
         sub_tab.native = sub_tab
         manual_controler = widgets.Container(
-            widgets=[sub_tab, start_reg_manual], labels=False
+            widgets=[sub_tab, plot_trsf, start_reg_manual], labels=False
         )
         # sub_tab.addStretch(1)
         tab_controls.addTab(manual_controler.native, "Manual")
@@ -254,17 +300,16 @@ class RegistrationWidget(QWidget):
     def _on_click_manual(self):
         tr = TimeRegistration(self.parameters)
         tr.run_trsf()
-        p = tr.params[0]
-        print(p)
-        if p.projection_path is not None:
-            p_to_data = p.projection_path
-            num_s = p.file_name.find("{")
-            num_e = p.file_name.find("}") + 1
-            f_name = p.file_name.replace(p.file_name[num_s:num_e], "")
-            im = imread(
-                p_to_data + f_name.replace(p.im_ext, "xyProjection.tif")
-            ).transpose(2, 1, 0)
-            self.viewer.add_image(im)
+        for p in tr.params:
+            if p.projection_path is not None:
+                p_to_data = p.projection_path
+                num_s = p.file_name.find("{")
+                num_e = p.file_name.find("}") + 1
+                f_name = p.file_name.replace(p.file_name[num_s:num_e], "")
+                im = imread(
+                    p_to_data + f_name.replace(p.im_ext, "xyProjection.tif")
+                ).transpose(2, 1, 0)
+                self.viewer.add_image(im)
 
     def _on_click_file(self):
         tr = TimeRegistration(self.json_file.value)
