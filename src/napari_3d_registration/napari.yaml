@@ -2,9 +2,14 @@ name: napari-3D-registration
 display_name: napari 3D registration
 contributions:
   commands:
-    - id: napari-3D-registration.registration_widget
+    - id: napari-3D-registration.time_registration_widget
       python_name: napari_3d_registration._widget:TimeRegistrationWidget
-      title: Make 3D registration widget  
+      title: Make 3D registration widget
+    - id: napari-3D-registration.spatial_registration_widget
+      python_name: napari_3d_registration._widget:SpatialRegistrationWidget
+      title: Make 3D registration widget
   widgets:
-    - command: napari-3D-registration.registration_widget
+    - command: napari-3D-registration.time_registration_widget
       display_name: Time registration
+    - command: napari-3D-registration.spatial_registration_widget
+      display_name: Spatial registration
