@@ -1,6 +1,6 @@
 import numpy as np
 
-# from napari_3d_registration import ExampleQWidget, example_magic_widget
+from napari_3d_registration import SpatialRegistrationWidget, TimeRegistrationWidget
 
 
 # make_napari_viewer is a pytest fixture that returns a napari viewer object
