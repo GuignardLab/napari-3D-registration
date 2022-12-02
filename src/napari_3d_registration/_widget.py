@@ -315,7 +315,7 @@ class TimeRegistrationWidget(RegistrationWidget):
         ### Trsf parameterization
         trsf_type_label = widgets.Label(value="Transformation type")
         self.trsf_type = widgets.ComboBox(
-            value=rigid, choices=[rigid, affine]
+            value="rigid", choices=["rigid", "affine"]
         )
         trsf_type = widgets.Container(
             widgets=[trsf_type_label, self.trsf_type], labels=False
