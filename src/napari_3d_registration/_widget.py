@@ -21,7 +21,6 @@ from registrationtools import SpatialRegistration, TimeRegistration
 from pathlib import Path
 from IO import imread
 import json
-from enum import Enum
 
 class RegistrationWidget(QWidget):
     @abstractproperty
@@ -33,7 +32,7 @@ class RegistrationWidget(QWidget):
     def parameters(self):
         self._parameters = {}
         for k, v in self.link_to_parameters.items():
-            if k == "voxel_size":
+            if k in ["voxel_size", "voxel_size_out"]:
                 val = []
                 for vs in v:
                     val.append(vs.value)
@@ -97,7 +96,54 @@ class RegistrationWidget(QWidget):
         button = QPushButton(name)
         button.clicked.connect(target)
         button.native = button
+        button.name = name
         return button
+
+    def make_voxel_label(self, label="Voxel size", where='{axis}_vox'):
+        vox_label = widgets.Label(value=label)
+        x_label = widgets.Label(value="x")
+        self.__dict__[where.format(axis="x")] = widgets.FloatText(value=1)
+        cont_x = widgets.Container(
+            widgets=[
+                x_label,
+                self.__dict__[where.format(axis="x")]
+            ],
+            layout="horizontal",
+            labels=False,
+        )
+        y_label = widgets.Label(value="y")
+        self.__dict__[where.format(axis="y")] = widgets.FloatText(value=1)
+        cont_y = widgets.Container(
+            widgets=[
+                y_label,
+                self.__dict__[where.format(axis="y")]
+            ],
+            layout="horizontal",
+            labels=False,
+        )
+        z_label = widgets.Label(value="z")
+        self.__dict__[where.format(axis="z")] = widgets.FloatText(value=6)
+        cont_z = widgets.Container(
+            widgets=[
+                z_label,
+                self.__dict__[where.format(axis="z")]
+            ],
+            layout="horizontal",
+            labels=False,
+        )
+        resolution = widgets.Container(
+            widgets=[
+                cont_x,
+                cont_y,
+                cont_z,
+            ],
+            layout="vertical",
+            labels=False,
+        )
+        vox_res = widgets.Container(
+            widgets=[vox_label, resolution], labels=False
+        )
+        return vox_res
 
     def _propagate_json(self):
         with open(self.json_file.value) as f:
@@ -107,7 +153,7 @@ class RegistrationWidget(QWidget):
                 self.link_to_parameters[k], "value"
             ):
                 self.link_to_parameters[k].value = v
-            elif k == "voxel_size":
+            elif k in ["voxel_size", "voxel_size_out"]:
                 for i, vs in enumerate(v):
                     self.link_to_parameters[k][i].value = vs
             elif k == "trsf_types":
@@ -181,6 +227,11 @@ class TimeRegistrationWidget(RegistrationWidget):
                 self.x_vox,
                 self.y_vox,
                 self.z_vox,
+            ],
+            "voxel_size_out": [
+                self.x_vox_out,
+                self.y_vox_out,
+                self.z_vox_out,
             ],
             "first": self.first_tp,
             "last": self.last_tp,
@@ -261,29 +312,9 @@ class TimeRegistrationWidget(RegistrationWidget):
             labels=False,
         )
         ### Geometry definition
-        vox_label = widgets.Label(value="Voxel size")
-        x_label = widgets.Label(value="x")
-        self.x_vox = widgets.FloatText(value=1)
-        y_label = widgets.Label(value="y")
-        self.y_vox = widgets.FloatText(value=1)
-        z_label = widgets.Label(value="z")
-        self.z_vox = widgets.FloatText(value=6)
-        resolution = widgets.Container(
-            widgets=[
-                x_label,
-                self.x_vox,
-                y_label,
-                self.y_vox,
-                z_label,
-                self.z_vox,
-            ],
-            layout="vertical",
-            labels=False,
-        )
-        vox_res = widgets.Container(
-            widgets=[vox_label, resolution], labels=False
-        )
-        geometry_tab = widgets.Container(widgets=[vox_res], labels=False)
+        vox_res = self.make_voxel_label("Voxel size", "{axis}_vox")
+        vox_res_out = self.make_voxel_label("Voxel size out", "{axis}_vox_out")
+        geometry_tab = widgets.Container(widgets=[vox_res, vox_res_out], labels=False)
 
         ### Time definition
         first_tp_label = widgets.Label(value="First time point:")
@@ -451,7 +482,6 @@ class SpatialRegistrationWidget(RegistrationWidget):
 
     @trsf_types.setter
     def trsf_types(self, value):
-        print('hello')
         self._trsf_types = value
         self.rigid.value = False
         self.affine.value = False
