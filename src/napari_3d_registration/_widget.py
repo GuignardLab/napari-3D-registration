@@ -550,9 +550,83 @@ class SpatialRegistrationWidget(RegistrationWidget):
                 opacity=.5
             )
 
+    def make_trans(self, label, where, min, max):
+        trans_label = widgets.Label(value=label)
+        trans_x_label = widgets.Label(value="X")
+        self.__dict__[where.format(axis='x')] = widgets.FloatText(value=0, min=min, max=max)
+        trans_x = widgets.Container(
+            widgets=[
+                trans_x_label,
+                self.__dict__[where.format(axis='x')]
+            ],
+            layout="horizontal",
+            labels=False,
+        )
+        
+        trans_y_label = widgets.Label(value="Y")
+        self.__dict__[where.format(axis='y')] = widgets.FloatText(value=0, min=min, max=max)
+        trans_y = widgets.Container(
+            widgets=[
+                trans_y_label,
+                self.__dict__[where.format(axis='y')]
+            ],
+            layout="horizontal",
+            labels=False,
+        )
+
+        trans_z_label = widgets.Label(value="Z")
+        self.__dict__[where.format(axis='y')] = widgets.FloatText(value=0, min=min, max=max)
+        trans_z = widgets.Container(
+            widgets=[
+                trans_z_label,
+                self.__dict__[where.format(axis='y')]
+            ],
+            layout="horizontal",
+            labels=False,
+        )
+        return widgets.Container(widgets=[trans_label, trans_x, trans_y, trans_z], layout="vertical", labels=False)
+
+    def make_angle_tab(self, angle_index):
+        flo_vox = self.make_voxel_label("Voxel size", "{axis}_vox_flo_"+f"{angle_index}")
+        flo_im = self.make_text_edit(
+            label=f"Floating image {angle_index}",
+            where="flo_im_{angle_index}",
+            default="image_1.tiff"
+        )
+
+        flip_label = widgets.Label(value="Flip:")
+        x_flip = self.make_tick_box("X", where=f"x_flip_{angle_index}", default=False)
+        y_flip = self.make_tick_box("Y", where=f"y_flip_{angle_index}", default=False)
+        z_flip = self.make_tick_box("Z", where=f"z_flip_{angle_index}", default=False)
+        flip = widgets.Container(widgets=[flip_label, x_flip, y_flip, z_flip], layout="horizontal", labels=False)
+        trans = self.make_trans("Translation", "trans_{axis}_"+f"{angle_index}", -1e6, 1e6)
+        rot = self.make_trans("Rotation (deg)", "rot_{axis}_"+f"{angle_index}", -360, 360)
+        basic = widgets.Container(
+            widgets=[
+                flo_im,
+                flo_vox  
+            ],
+            labels=False
+        )
+        init_trsf = widgets.Container(
+            widgets=[
+                flip,
+                trans,
+                rot
+            ]
+        )
+        angle_i = QTabWidget()
+        angle_i.addTab(basic.native, "Basic")
+        angle_i.addTab(init_trsf.native, "Init trsf")
+        angle_i.native = angle_i
+        return angle_i
 
     def make_manual_parameterization(self):
-
+        nb_angles_label = widgets.Label(value='Number of angles')
+        self.nb_angles = widgets.IntText(value=2, min=2, max=6)
+        nb_angles = widgets.Container(widgets=[nb_angles_label, self.nb_angles], layout="horizontal", labels=False)
+        self.nb_angles.changed.connect()
+        
         ### Paths definition
         path_data = self.make_file_search(
             label="Path to images", filter=None, where="path_data_file"
@@ -562,12 +636,12 @@ class SpatialRegistrationWidget(RegistrationWidget):
             where="ref_im",
             default="image_0.tiff",
         )
-        flo_ims = self.make_text_edit(
-            label="Floating images",
-            where="flo_ims",
-            default='["image_1.tiff", "image_2.tiff", "image_3.tiff"]',
-            eval_val=True
-        )
+        # flo_ims = self.make_text_edit(
+        #     label="Floating images",
+        #     where="flo_ims",
+        #     default='["image_1.tiff", "image_2.tiff", "image_3.tiff"]',
+        #     eval_val=True
+        # )
         trsf_paths = self.make_file_search(
             label="Path to save transformations",
             filter=None,
@@ -585,7 +659,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
             widgets=[
                 path_data,
                 ref_im,
-                flo_ims,
+                # flo_ims,
                 trsf_paths,
                 out_pattern,
             ],
@@ -593,14 +667,14 @@ class SpatialRegistrationWidget(RegistrationWidget):
         )
 
         ### Transformations
-        init_trsfs = self.make_text_edit(
-            label="Initial transformations",
-            where="init_trsfs",
-            default=('[["flip", "Y", "flip", "Z", "trans", "Z", -72],\n'
-                     ' ["flip", "Y"],\n'
-                     ' ["flip", "Z"]]'),
-            eval_val=True
-        )
+        # init_trsfs = self.make_text_edit(
+        #     label="Initial transformations",
+        #     where="init_trsfs",
+        #     default=('[["flip", "Y", "flip", "Z", "trans", "Z", -72],\n'
+        #              ' ["flip", "Y"],\n'
+        #              ' ["flip", "Z"]]'),
+        #     eval_val=True
+        # )
 
         trsf_types_label = widgets.Label(value="Transformations types")
         rigid = self.make_tick_box(
@@ -632,7 +706,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
         )
         trsf_tab = widgets.Container(
             widgets=[
-                init_trsfs,
+                # init_trsfs,
                 trsf_types,
                 trsf_folder
             ],
@@ -640,31 +714,32 @@ class SpatialRegistrationWidget(RegistrationWidget):
         )
 
         ### Geometry definition
-        ref_voxel = self.make_text_edit(
-            label="Reference voxel",
-            where="ref_voxel",
-            default='.5, .5, 1',
-            eval_val=True
-        )
+        ref_voxel = self.make_voxel_label("Reference voxel size", "ref_voxel")
+        # ref_voxel = self.make_text_edit(
+        #     label="Reference voxel",
+        #     where="ref_voxel",
+        #     default='.5, .5, 1',
+        #     eval_val=True
+        # )
 
-        flo_voxels = self.make_text_edit(
-            label="Floating voxel",
-            where="flo_voxels",
-            default='[.5, .5, 1], [.5, .5, 1], [.2, .2, 1]',
-            eval_val=True
-        )
-
-        out_voxel = self.make_text_edit(
-            label="Output voxel",
-            where="out_voxel",
-            default='1, 1, 1',
-            eval_val=True
-        )
+        # flo_voxels = self.make_text_edit(
+        #     label="Floating voxel",
+        #     where="flo_voxels",
+        #     default='[.5, .5, 1], [.5, .5, 1], [.2, .2, 1]',
+        #     eval_val=True
+        # )
+        out_voxel = self.make_voxel_label("Output voxel size", "out_voxel")
+        # out_voxel = self.make_text_edit(
+        #     label="Output voxel",
+        #     where="out_voxel",
+        #     default='1, 1, 1',
+        #     eval_val=True
+        # )
 
         geometry_tab = widgets.Container(
             widgets=[
                 ref_voxel,
-                flo_voxels,
+                # flo_voxels,
                 out_voxel
             ],
             labels=False,
@@ -741,14 +816,22 @@ class SpatialRegistrationWidget(RegistrationWidget):
         )
         start_reg_manual = self.make_button("Run!", self._on_click_manual)
 
-        sub_tab = QTabWidget()
-        sub_tab.addTab(path_tab.native, "Paths")
-        sub_tab.addTab(trsf_tab.native, "Trsf")
-        sub_tab.addTab(geometry_tab.native, "Geometry")
-        sub_tab.addTab(advanced_tab.native, "Advanced")
+        ref_tab = QTabWidget()
+        ref_tab.addTab(path_tab.native, "Paths")
+        ref_tab.addTab(trsf_tab.native, "Trsf")
+        ref_tab.addTab(geometry_tab.native, "Geometry")
+        ref_tab.addTab(advanced_tab.native, "Advanced")
+        ref_tab.native = ref_tab
+        
+        for angle in range(2, self.nb_angles.value+1):
+            angle_tab = self.make_angle_tab(angle)
+            sub_tab = QTabWidget()
+        sub_tab.addTab(ref_tab, "Global & Ref image")
+        sub_tab.addTab(angle_tab.native, "Angle 1")
         sub_tab.native = sub_tab
+        
         manual_controler = widgets.Container(
-            widgets=[sub_tab, test_init, save_manual_setup, start_reg_manual],
+            widgets=[nb_angles, sub_tab, test_init, save_manual_setup, start_reg_manual],
             labels=False,
         )
 
