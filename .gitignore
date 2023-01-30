@@ -84,3 +84,4 @@ venv/
 **/_version.py
 
 local-data-test
+notebook_tests
