@@ -304,10 +304,18 @@ class TimeRegistrationWidget(RegistrationWidget):
             num_s = p.file_name.find("{")
             num_e = p.file_name.find("}") + 1
             f_name = p.file_name.replace(p.file_name[num_s:num_e], "")
-            im = imread(
+            im_xy = imread(
                 p_to_data + f_name.replace(p.im_ext, "xyProjection.tif")
             ).transpose(2, 1, 0)
-            self.viewer.add_image(im)
+            im_xz = imread(
+                p_to_data + f_name.replace(p.im_ext, "xzProjection.tif")
+            ).transpose(2, 1, 0)
+            im_yz = imread(
+                p_to_data + f_name.replace(p.im_ext, "yzProjection.tif")
+            ).transpose(2, 1, 0)
+            self.viewer.add_image(im_xy, scale=(1, p.voxel_size_out[1], p.voxel_size_out[0]))
+            self.viewer.add_image(im_xz, scale=(1, p.voxel_size_out[2], p.voxel_size_out[0]))
+            self.viewer.add_image(im_yz, scale=(1, p.voxel_size_out[2], p.voxel_size_out[1]))
 
     def make_manual_parameterization(self):
         ### Paths definition
