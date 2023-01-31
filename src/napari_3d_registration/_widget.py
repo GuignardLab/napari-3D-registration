@@ -110,21 +110,21 @@ class RegistrationWidget(QWidget):
     def make_voxel_label(self, label="Voxel size", where="{axis}_vox"):
         vox_label = widgets.Label(value=label)
         x_label = widgets.Label(value="x")
-        self.__dict__[where.format(axis="x")] = widgets.FloatText(value=1)
+        self.__dict__[where.format(axis="x")] = widgets.FloatText(value=1, min=0, max=100, step=1e-5)
         cont_x = widgets.Container(
             widgets=[x_label, self.__dict__[where.format(axis="x")]],
             layout="horizontal",
             labels=False,
         )
         y_label = widgets.Label(value="y")
-        self.__dict__[where.format(axis="y")] = widgets.FloatText(value=1)
+        self.__dict__[where.format(axis="y")] = widgets.FloatText(value=1, min=0, max=100, step=1e-5)
         cont_y = widgets.Container(
             widgets=[y_label, self.__dict__[where.format(axis="y")]],
             layout="horizontal",
             labels=False,
         )
         z_label = widgets.Label(value="z")
-        self.__dict__[where.format(axis="z")] = widgets.FloatText(value=6)
+        self.__dict__[where.format(axis="z")] = widgets.FloatText(value=6, min=0, max=100, step=1e-5)
         cont_z = widgets.Container(
             widgets=[z_label, self.__dict__[where.format(axis="z")]],
             layout="horizontal",
@@ -281,6 +281,20 @@ class TimeRegistrationWidget(RegistrationWidget):
         }
         return self._link_to_parameters
 
+    @property
+    def low_th(self):
+        if not self.low_th_bool.value:
+            self._low_th = 0
+        else:
+            self._low_th = self.low_th_val.value
+        return self._low_th
+    
+    @low_th.setter
+    def low_th(self, value):
+        self._low_th = value
+        self.low_th_val.value = int(value if value else 0)
+        self.low_th_bool.value = bool(value!=0)
+
     def _on_click_manual(self):
         tr = TimeRegistration(self.parameters)
         tr.run_trsf()
@@ -290,10 +304,19 @@ class TimeRegistrationWidget(RegistrationWidget):
                 num_s = p.file_name.find("{")
                 num_e = p.file_name.find("}") + 1
                 f_name = p.file_name.replace(p.file_name[num_s:num_e], "")
-                im = imread(
-                    p_to_data + f_name.replace(p.im_ext, "xyProjection.tif")
+                proj_name = f_name.replace(p.im_ext, "{:s}Projection.tif")
+                im_xy = imread(
+                    p_to_data + proj_name.format("xy")
                 ).transpose(2, 1, 0)
-                self.viewer.add_image(im)
+                im_xz = imread(
+                    p_to_data + proj_name.format("xz")
+                ).transpose(2, 1, 0)
+                im_yz = imread(
+                    p_to_data + proj_name.format("yz")
+                ).transpose(2, 1, 0)
+                self.viewer.add_image(im_xy, name=proj_name.format("xy"), scale=(1, p.voxel_size_out[1], p.voxel_size_out[0]))
+                self.viewer.add_image(im_yz, name=proj_name.format("xz"), scale=(1, p.voxel_size_out[2], p.voxel_size_out[1]), visible=False)
+                self.viewer.add_image(im_xz, name=proj_name.format("yz"), scale=(1, p.voxel_size_out[2], p.voxel_size_out[0]), visible=False)
 
     def _on_click_file(self):
         tr = TimeRegistration(self.json_file.value)
@@ -304,18 +327,19 @@ class TimeRegistrationWidget(RegistrationWidget):
             num_s = p.file_name.find("{")
             num_e = p.file_name.find("}") + 1
             f_name = p.file_name.replace(p.file_name[num_s:num_e], "")
+            proj_name = f_name.replace(p.im_ext, "{:s}Projection.tif")
             im_xy = imread(
-                p_to_data + f_name.replace(p.im_ext, "xyProjection.tif")
+                p_to_data + proj_name.format("xy")
             ).transpose(2, 1, 0)
             im_xz = imread(
-                p_to_data + f_name.replace(p.im_ext, "xzProjection.tif")
+                p_to_data + proj_name.format("xz")
             ).transpose(2, 1, 0)
             im_yz = imread(
-                p_to_data + f_name.replace(p.im_ext, "yzProjection.tif")
+                p_to_data + proj_name.format("yz")
             ).transpose(2, 1, 0)
-            self.viewer.add_image(im_xy, scale=(1, p.voxel_size_out[1], p.voxel_size_out[0]))
-            self.viewer.add_image(im_xz, scale=(1, p.voxel_size_out[2], p.voxel_size_out[0]))
-            self.viewer.add_image(im_yz, scale=(1, p.voxel_size_out[2], p.voxel_size_out[1]))
+            self.viewer.add_image(im_xy, name=proj_name.format("xy"), scale=(1, p.voxel_size_out[1], p.voxel_size_out[0]))
+            self.viewer.add_image(im_yz, name=proj_name.format("xz"), scale=(1, p.voxel_size_out[2], p.voxel_size_out[1]), visible=False)
+            self.viewer.add_image(im_xz, name=proj_name.format("yz"), scale=(1, p.voxel_size_out[2], p.voxel_size_out[0]), visible=False)
 
     def make_manual_parameterization(self):
         ### Paths definition
@@ -412,8 +436,8 @@ class TimeRegistrationWidget(RegistrationWidget):
         no_tp = self.make_text_edit(
             "Time points to skip:", "no_tp", "[]", eval_val=True
         )
-        pre2D = self.make_tick_box("Pre 2D registration", True, where="pre2D")
-        low_th = self.make_tick_box("Low threshold", True, where="low_th")
+        pre2D = self.make_tick_box("Pre 2D registration", False, where="pre2D")
+        low_th = self.make_tick_box("Low threshold", False, where="low_th_bool")
         low_th_value_label = widgets.Label(value="Low threshold value:")
         self.low_th_val = widgets.IntText(value=250)
         low_th_value = widgets.Container(
@@ -451,7 +475,7 @@ class TimeRegistrationWidget(RegistrationWidget):
         )
 
         plot_trsf = self.make_tick_box(
-            "Plot trsf before apply", True, where="plot_trsf"
+            "Plot trsf before apply", False, where="plot_trsf"
         )
         save_manual_setup = self.make_button(
             "Save parameters", self._save_json
@@ -465,6 +489,7 @@ class TimeRegistrationWidget(RegistrationWidget):
         sub_tab.addTab(time_tab.native, "Time")
         sub_tab.addTab(advanced_tab.native, "Advanced")
         sub_tab.native = sub_tab
+        sub_tab.name = ""
         manual_controler = widgets.Container(
             widgets=[sub_tab, plot_trsf, save_manual_setup, start_reg_manual],
             labels=False,
@@ -661,7 +686,6 @@ class SpatialRegistrationWidget(RegistrationWidget):
         tr = SpatialRegistration(params)
         tr.run_trsf()
         p = tr.params[0]
-        print(p)
         ref = imread(p.ref_out)
         vox = [v.value for v in self.link_to_parameters["out_voxel"]]
         color_maps = [
@@ -682,7 +706,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
                 im,
                 colormap=color_maps[i % len(color_maps)],
                 scale=vox,
-                name=f"Floating {i}",
+                name=f"Floating {i+1}",
                 opacity=0.5,
             )
 
@@ -710,7 +734,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
                 im,
                 colormap=color_maps[i % len(color_maps)],
                 scale=vox,
-                name=f"Flo {i}",
+                name=f"Floating {i+1}",
                 opacity=0.5,
             )
 
