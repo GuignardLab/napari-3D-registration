@@ -85,3 +85,5 @@ venv/
 
 local-data-test
 notebook_tests
+.github
+.pre-commit-config.yaml
