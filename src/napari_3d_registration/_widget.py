@@ -11,19 +11,21 @@ from typing import TYPE_CHECKING
 
 from magicgui import widgets
 from qtpy.QtWidgets import (
-    QLayout,
     QVBoxLayout,
     QPushButton,
     QWidget,
     QTabWidget,
     QFileDialog,
     QComboBox,
-    QStackedWidget
+    QStackedWidget,
+    QMessageBox,
 )
 from registrationtools import SpatialRegistration, TimeRegistration
 from pathlib import Path
 from IO import imread
+from shutil import which
 import json
+
 
 class RegistrationWidget(QWidget):
     @abstractproperty
@@ -36,12 +38,12 @@ class RegistrationWidget(QWidget):
         self._parameters = {}
         for k, v in self.link_to_parameters.items():
             ## Case of list of parameters that have a value attribute
-            if isinstance(v, list) and all([hasattr(vs, 'value') for vs in v]):
+            if isinstance(v, list) and all([hasattr(vs, "value") for vs in v]):
                 val = []
                 for vs in v:
                     val.append(vs.value)
             else:
-                if hasattr(v, 'value'):
+                if hasattr(v, "value"):
                     val = v.value
                 else:
                     val = v
@@ -51,7 +53,9 @@ class RegistrationWidget(QWidget):
             self._parameters[k] = val
         return self._parameters
 
-    def make_file_search(self, label, filter, where=None, default=None, mode='r'):
+    def make_file_search(
+        self, label, filter, where=None, default=None, mode="r"
+    ):
         label = widgets.Label(value=label)
         if where is None:
             where = label
@@ -103,35 +107,26 @@ class RegistrationWidget(QWidget):
         button.name = name
         return button
 
-    def make_voxel_label(self, label="Voxel size", where='{axis}_vox'):
+    def make_voxel_label(self, label="Voxel size", where="{axis}_vox"):
         vox_label = widgets.Label(value=label)
         x_label = widgets.Label(value="x")
         self.__dict__[where.format(axis="x")] = widgets.FloatText(value=1)
         cont_x = widgets.Container(
-            widgets=[
-                x_label,
-                self.__dict__[where.format(axis="x")]
-            ],
+            widgets=[x_label, self.__dict__[where.format(axis="x")]],
             layout="horizontal",
             labels=False,
         )
         y_label = widgets.Label(value="y")
         self.__dict__[where.format(axis="y")] = widgets.FloatText(value=1)
         cont_y = widgets.Container(
-            widgets=[
-                y_label,
-                self.__dict__[where.format(axis="y")]
-            ],
+            widgets=[y_label, self.__dict__[where.format(axis="y")]],
             layout="horizontal",
             labels=False,
         )
         z_label = widgets.Label(value="z")
         self.__dict__[where.format(axis="z")] = widgets.FloatText(value=6)
         cont_z = widgets.Container(
-            widgets=[
-                z_label,
-                self.__dict__[where.format(axis="z")]
-            ],
+            widgets=[z_label, self.__dict__[where.format(axis="z")]],
             layout="horizontal",
             labels=False,
         )
@@ -163,10 +158,9 @@ class RegistrationWidget(QWidget):
             ):
                 self.link_to_parameters[k].value = v
             ## Parameters that are lists of parameters
-            elif (
-                    isinstance(self.link_to_parameters[k], list)
-                    and all([hasattr(vi, "value") for vi in self.link_to_parameters[k]])
-                ):
+            elif isinstance(self.link_to_parameters[k], list) and all(
+                [hasattr(vi, "value") for vi in self.link_to_parameters[k]]
+            ):
                 for i, vs in enumerate(v):
                     self.link_to_parameters[k][i].value = vs
             ## More complex parameters with dedicated getters and setters
@@ -200,9 +194,29 @@ class RegistrationWidget(QWidget):
     def _on_click_file(self):
         print("File Click")
 
+    @abstractmethod
+    def _check_binaries(self):
+        return []
+
     def __init__(self, napari_viewer):
         super().__init__()
         self.viewer = napari_viewer
+
+        binaries_not_found = self._check_binaries()
+        if 0 < len(binaries_not_found):
+            not_found = "\n\t".join(binaries_not_found)
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Missing binaries")
+            msg.setInformativeText(
+                (
+                    "The following binaries necessary to run this plugin were not found:\n"
+                    "\t" + not_found
+                )
+            )
+            msg.setWindowTitle("Missing binaries")
+            msg.exec_()
+            return
 
         ## json file parameterization:
         json = self.make_file_search("Parameter file", "*.json", "json_file")
@@ -215,7 +229,7 @@ class RegistrationWidget(QWidget):
 
         ## Manual parameterization
         manual_controler = self.make_manual_parameterization()
-        
+
         self.tab_controls = QTabWidget()
         self.tab_controls.addTab(self.file_params.native, "From File")
         self.tab_controls.addTab(manual_controler.native, "Manual")
@@ -330,7 +344,9 @@ class TimeRegistrationWidget(RegistrationWidget):
         ### Geometry definition
         vox_res = self.make_voxel_label("Voxel size", "{axis}_vox")
         vox_res_out = self.make_voxel_label("Voxel size out", "{axis}_vox_out")
-        geometry_tab = widgets.Container(widgets=[vox_res, vox_res_out], labels=False)
+        geometry_tab = widgets.Container(
+            widgets=[vox_res, vox_res_out], labels=False
+        )
 
         ### Time definition
         first_tp_label = widgets.Label(value="First time point:")
@@ -385,7 +401,9 @@ class TimeRegistrationWidget(RegistrationWidget):
         )
 
         ### Advanced parameterization
-        no_tp = self.make_text_edit("Time points to skip:", "no_tp", "[]", eval_val=True)
+        no_tp = self.make_text_edit(
+            "Time points to skip:", "no_tp", "[]", eval_val=True
+        )
         pre2D = self.make_tick_box("Pre 2D registration", True, where="pre2D")
         low_th = self.make_tick_box("Low threshold", True, where="low_th")
         low_th_value_label = widgets.Label(value="Low threshold value:")
@@ -446,8 +464,22 @@ class TimeRegistrationWidget(RegistrationWidget):
 
         return manual_controler
 
+    def _check_binaries(self):
+        binary_list = [
+            "applyTrsf",
+            "blockmatching",
+            "composeTrsf",
+            "changeMultipleTrsfs",
+        ]
+        missed_binaries = []
+        for bin in binary_list:
+            if which(bin) is None:
+                missed_binaries.append(bin)
+        return missed_binaries
+
     def __init__(self, napari_viewer):
         super().__init__(napari_viewer)
+
 
 class SpatialRegistrationWidget(RegistrationWidget):
     @property
@@ -459,18 +491,10 @@ class SpatialRegistrationWidget(RegistrationWidget):
             "init_trsfs": self.init_trsfs,
             "trsf_types": self.trsf_types,
             "trsf_paths": self.trsf_paths,
-            "ref_voxel": [
-                self.x_vox,
-                self.y_vox,
-                self.z_vox
-            ],
+            "ref_voxel": [self.x_vox, self.y_vox, self.z_vox],
             "flo_voxels": self.flo_voxels,
             "flo_im_sizes": None,
-            "out_voxel": [
-                self.x_out_vox,
-                self.y_out_vox,
-                self.z_out_vox
-            ],
+            "out_voxel": [self.x_out_vox, self.y_out_vox, self.z_out_vox],
             "out_pattern": self.out_pattern,
             "path_to_bin": "",
             "registration_depth": self.registration_depth,
@@ -485,7 +509,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
             "bdv_unit": "microns",
             "do_bdv": False,
             "copy_ref": self.copy_ref,
-            "bbox_out": self.bbox_out
+            "bbox_out": self.bbox_out,
         }
         return self._link_to_parameters
 
@@ -493,11 +517,11 @@ class SpatialRegistrationWidget(RegistrationWidget):
     def trsf_types(self):
         self._trsf_types = []
         if self.rigid.value:
-            self._trsf_types.append('rigid')
+            self._trsf_types.append("rigid")
         if self.affine.value:
-            self._trsf_types.append('affine')
+            self._trsf_types.append("affine")
         if self.vectorfield.value:
-            self._trsf_types.append('vectorfield')
+            self._trsf_types.append("vectorfield")
         return self._trsf_types
 
     @trsf_types.setter
@@ -509,11 +533,11 @@ class SpatialRegistrationWidget(RegistrationWidget):
         for v in value:
             if isinstance(v, str):
                 trsf = v.lower().strip()
-                if trsf == 'rigid':
+                if trsf == "rigid":
                     self.rigid.value = True
-                elif trsf == 'affine':
+                elif trsf == "affine":
                     self.affine.value = True
-                elif trsf == 'vectorfield':
+                elif trsf == "vectorfield":
                     self.vectorfield.value = True
 
     @property
@@ -521,7 +545,9 @@ class SpatialRegistrationWidget(RegistrationWidget):
         self._flo_ims = []
         for i in range(5):
             if self.__dict__[f"to_use_{i+1}"].value:
-                self._flo_ims.append(self.__dict__[f"flo_im_{i+1}".lower()].value)
+                self._flo_ims.append(
+                    self.__dict__[f"flo_im_{i+1}".lower()].value
+                )
         return self._flo_ims
 
     @flo_ims.setter
@@ -530,7 +556,9 @@ class SpatialRegistrationWidget(RegistrationWidget):
         angle_number = 0
         for i in range(5):
             if self.__dict__[f"to_use_{i+1}"].value:
-                self.__dict__[f"flo_im_{i+1}".lower()].value = value[angle_number]
+                self.__dict__[f"flo_im_{i+1}".lower()].value = value[
+                    angle_number
+                ]
                 angle_number += 1
 
     @property
@@ -539,8 +567,10 @@ class SpatialRegistrationWidget(RegistrationWidget):
         for i in range(5):
             if self.__dict__[f"to_use_{i+1}"].value:
                 flo_vox_tmp = []
-                for axis in ['x', 'y', 'z']:
-                    flo_vox_tmp.append(self.__dict__[f"{axis}_vox_flo_{i+1}"].value)
+                for axis in ["x", "y", "z"]:
+                    flo_vox_tmp.append(
+                        self.__dict__[f"{axis}_vox_flo_{i+1}"].value
+                    )
                 self._flo_voxels.append(flo_vox_tmp)
         return self._flo_voxels
 
@@ -550,8 +580,10 @@ class SpatialRegistrationWidget(RegistrationWidget):
         angle_number = 0
         for i in range(5):
             if self.__dict__[f"to_use_{i+1}"].value:
-                for axis_pos, axis in enumerate(['x', 'y', 'z']):
-                    self.__dict__[f"{axis}_vox_flo_{i+1}"].value = value[angle_number][axis_pos]
+                for axis_pos, axis in enumerate(["x", "y", "z"]):
+                    self.__dict__[f"{axis}_vox_flo_{i+1}"].value = value[
+                        angle_number
+                    ][axis_pos]
                 angle_number += 1
 
     @property
@@ -561,38 +593,58 @@ class SpatialRegistrationWidget(RegistrationWidget):
             init_trsf = []
             if self.__dict__[f"to_use_{i+1}"].value:
                 # Flip
-                for axis in ['X', 'Y', 'Z']:
+                for axis in ["X", "Y", "Z"]:
                     if self.__dict__[f"{axis}_flip_{i+1}".lower()].value:
                         init_trsf.extend(["flip", f"{axis}"])
                 # Translation
-                for axis in ['X', 'Y', 'Z']:
-                    if self.__dict__[f"trans_{axis}_{i+1}".lower()].value!=0:
-                        init_trsf.extend(["trans", f"{axis}", self.__dict__[f"trans_{axis}_{i+1}".lower()].value])
+                for axis in ["X", "Y", "Z"]:
+                    if self.__dict__[f"trans_{axis}_{i+1}".lower()].value != 0:
+                        init_trsf.extend(
+                            [
+                                "trans",
+                                f"{axis}",
+                                self.__dict__[
+                                    f"trans_{axis}_{i+1}".lower()
+                                ].value,
+                            ]
+                        )
                 # Rotation
-                for axis in ['X', 'Y', 'Z']:
-                    if self.__dict__[f"rot_{axis}_{i+1}".lower()].value!=0:
-                        init_trsf.extend(["rot", f"{axis}", self.__dict__[f"rot_{axis}_{i+1}".lower()].value])
+                for axis in ["X", "Y", "Z"]:
+                    if self.__dict__[f"rot_{axis}_{i+1}".lower()].value != 0:
+                        init_trsf.extend(
+                            [
+                                "rot",
+                                f"{axis}",
+                                self.__dict__[
+                                    f"rot_{axis}_{i+1}".lower()
+                                ].value,
+                            ]
+                        )
                 self._init_trsfs.append(init_trsf)
         return self._init_trsfs
-    
+
     @init_trsfs.setter
     def init_trsfs(self, value):
         self._init_trsfs = value
         if not isinstance(value[0], list):
             value = [value]
-        for axis in ['X', 'Y', 'Z']:
+        for axis in ["X", "Y", "Z"]:
             for i in range(5):
                 self.__dict__[f"{axis}_flip_{i+1}".lower()].value = False
                 self.__dict__[f"trans_{axis}_{i+1}".lower()].value = 0
                 self.__dict__[f"rot_{axis}_{i+1}".lower()].value = 0
         for i, trsfs in enumerate(value):
             curr = 0
-            while curr<len(trsfs):
+            while curr < len(trsfs):
                 if trsfs[curr] == "flip":
-                    self.__dict__[f"{trsfs[curr+1].upper()}_flip_{i+1}".lower()].value = True
+                    self.__dict__[
+                        f"{trsfs[curr+1].upper()}_flip_{i+1}".lower()
+                    ].value = True
                     curr += 2
                 else:
-                    self.__dict__[f"{trsfs[curr].lower()}_{trsfs[curr+1].upper()}_{i+1}".lower()].value = trsfs[curr+2]
+                    self.__dict__[
+                        f"{trsfs[curr].lower()}_{trsfs[curr+1].upper()}_{i+1}".lower()
+                    ].value = trsfs[curr + 2]
                     curr += 3
 
     def _on_click_manual(self):
@@ -604,13 +656,15 @@ class SpatialRegistrationWidget(RegistrationWidget):
         print(p)
         ref = imread(p.ref_out)
         vox = [v.value for v in self.link_to_parameters["out_voxel"]]
-        color_maps = ['magenta', 'cyan', 'bop blue', 'bop orange', 'bop purple']
+        color_maps = [
+            "magenta",
+            "cyan",
+            "bop blue",
+            "bop orange",
+            "bop purple",
+        ]
         self.viewer.add_image(
-            ref,
-            colormap='gray',
-            scale=vox,
-            name="Reference",
-            opacity=.5
+            ref, colormap="gray", scale=vox, name="Reference", opacity=0.5
         )
         flos = []
         for i, p_flo in enumerate(p.flo_outs):
@@ -618,10 +672,10 @@ class SpatialRegistrationWidget(RegistrationWidget):
             flos.append(im)
             self.viewer.add_image(
                 im,
-                colormap=color_maps[i%len(color_maps)],
+                colormap=color_maps[i % len(color_maps)],
                 scale=vox,
                 name=f"Floating {i}",
-                opacity=.5
+                opacity=0.5,
             )
 
     def _on_click_file(self):
@@ -630,13 +684,15 @@ class SpatialRegistrationWidget(RegistrationWidget):
         p = tr.params[0]
         ref = imread(p.ref_out)
         vox = [v.value for v in self.link_to_parameters["out_voxel"]]
-        color_maps = ['magenta', 'cyan', 'bop blue', 'bop orange', 'bop purple']
+        color_maps = [
+            "magenta",
+            "cyan",
+            "bop blue",
+            "bop orange",
+            "bop purple",
+        ]
         self.viewer.add_image(
-            ref,
-            colormap='gray',
-            scale=vox,
-            name=f"Reference",
-            opacity=.5
+            ref, colormap="gray", scale=vox, name=f"Reference", opacity=0.5
         )
         flos = []
         for i, p_flo in enumerate(p.flo_outs):
@@ -644,92 +700,102 @@ class SpatialRegistrationWidget(RegistrationWidget):
             flos.append(im)
             self.viewer.add_image(
                 im,
-                colormap=color_maps[i%len(color_maps)],
+                colormap=color_maps[i % len(color_maps)],
                 scale=vox,
                 name=f"Flo {i}",
-                opacity=.5
+                opacity=0.5,
             )
 
     def make_trans(self, label, where, min, max):
         trans_label = widgets.Label(value=label)
         trans_x_label = widgets.Label(value="X")
-        self.__dict__[where.format(axis='x')] = widgets.FloatText(value=0, min=min, max=max)
+        self.__dict__[where.format(axis="x")] = widgets.FloatText(
+            value=0, min=min, max=max
+        )
         trans_x = widgets.Container(
-            widgets=[
-                trans_x_label,
-                self.__dict__[where.format(axis='x')]
-            ],
+            widgets=[trans_x_label, self.__dict__[where.format(axis="x")]],
             layout="horizontal",
             labels=False,
         )
-        
+
         trans_y_label = widgets.Label(value="Y")
-        self.__dict__[where.format(axis='y')] = widgets.FloatText(value=0, min=min, max=max)
+        self.__dict__[where.format(axis="y")] = widgets.FloatText(
+            value=0, min=min, max=max
+        )
         trans_y = widgets.Container(
-            widgets=[
-                trans_y_label,
-                self.__dict__[where.format(axis='y')]
-            ],
+            widgets=[trans_y_label, self.__dict__[where.format(axis="y")]],
             layout="horizontal",
             labels=False,
         )
 
         trans_z_label = widgets.Label(value="Z")
-        self.__dict__[where.format(axis='z')] = widgets.FloatText(value=0, min=min, max=max)
+        self.__dict__[where.format(axis="z")] = widgets.FloatText(
+            value=0, min=min, max=max
+        )
         trans_z = widgets.Container(
-            widgets=[
-                trans_z_label,
-                self.__dict__[where.format(axis='z')]
-            ],
+            widgets=[trans_z_label, self.__dict__[where.format(axis="z")]],
             layout="horizontal",
             labels=False,
         )
-        return widgets.Container(widgets=[trans_label, trans_x, trans_y, trans_z], layout="vertical", labels=False)
+        return widgets.Container(
+            widgets=[trans_label, trans_x, trans_y, trans_z],
+            layout="vertical",
+            labels=False,
+        )
 
     def make_angle_tab(self, angle_index):
-        to_use = self.make_tick_box("Use this angle", default=angle_index<=1, where=f"to_use_{angle_index}")
+        to_use = self.make_tick_box(
+            "Use this angle",
+            default=angle_index <= 1,
+            where=f"to_use_{angle_index}",
+        )
         to_use.native.layout().setSpacing(0)
         to_use.native.layout().setContentsMargins(0, 0, 0, 0)
-        flo_vox = self.make_voxel_label("Voxel size", "{axis}_vox_flo_"+f"{angle_index}")
+        flo_vox = self.make_voxel_label(
+            "Voxel size", "{axis}_vox_flo_" + f"{angle_index}"
+        )
         flo_vox.native.layout().setSpacing(0)
         flo_vox.native.layout().setContentsMargins(0, 0, 0, 0)
         flo_im = self.make_text_edit(
             label=f"Floating image {angle_index}",
             where=f"flo_im_{angle_index}",
-            default=f"image_{angle_index}.tiff"
+            default=f"image_{angle_index}.tiff",
         )
         flo_im.native.layout().setSpacing(0)
         flo_im.native.layout().setContentsMargins(0, 0, 0, 0)
 
         flip_label = widgets.Label(value="Flip:")
-        x_flip = self.make_tick_box("X", where=f"x_flip_{angle_index}", default=False)
-        y_flip = self.make_tick_box("Y", where=f"y_flip_{angle_index}", default=False)
-        z_flip = self.make_tick_box("Z", where=f"z_flip_{angle_index}", default=False)
-        flip_tick = widgets.Container(widgets=[flip_label, x_flip, y_flip, z_flip], layout="horizontal", labels=False)
+        x_flip = self.make_tick_box(
+            "X", where=f"x_flip_{angle_index}", default=False
+        )
+        y_flip = self.make_tick_box(
+            "Y", where=f"y_flip_{angle_index}", default=False
+        )
+        z_flip = self.make_tick_box(
+            "Z", where=f"z_flip_{angle_index}", default=False
+        )
+        flip_tick = widgets.Container(
+            widgets=[flip_label, x_flip, y_flip, z_flip],
+            layout="horizontal",
+            labels=False,
+        )
         flip_tick.native.layout().setSpacing(0)
         flip_tick.native.layout().setContentsMargins(0, 0, 0, 0)
         # flip = widgets.Container(widgets=[flip_label, flip_tick], layout="vertical", labels=False)
-        trans = self.make_trans("Translation", "trans_{axis}_"+f"{angle_index}", -1e6, 1e6)
+        trans = self.make_trans(
+            "Translation", "trans_{axis}_" + f"{angle_index}", -1e6, 1e6
+        )
         trans.native.layout().setSpacing(0)
         trans.native.layout().setContentsMargins(0, 0, 0, 0)
-        rot = self.make_trans("Rotation (deg)", "rot_{axis}_"+f"{angle_index}", -360, 360)
+        rot = self.make_trans(
+            "Rotation (deg)", "rot_{axis}_" + f"{angle_index}", -360, 360
+        )
         rot.native.layout().setSpacing(0)
         rot.native.layout().setContentsMargins(0, 0, 0, 0)
         basic = widgets.Container(
-            widgets=[
-                to_use,
-                flo_im,
-                flo_vox  
-            ],
-            labels=False
+            widgets=[to_use, flo_im, flo_vox], labels=False
         )
-        init_trsf = widgets.Container(
-            widgets=[
-                flip_tick,
-                trans,
-                rot
-            ]
-        )
+        init_trsf = widgets.Container(widgets=[flip_tick, trans, rot])
         angle_i = QTabWidget()
         basic.native.layout().setSpacing(0)
         basic.native.layout().setContentsMargins(0, 0, 0, 0)
@@ -747,9 +813,9 @@ class SpatialRegistrationWidget(RegistrationWidget):
         main_combobox.addItem("Reference")
         for i in range(5):
             main_combobox.addItem(f"Angle {i+1}")
-        main_combobox._explicitly_hidden = False    
+        main_combobox._explicitly_hidden = False
         main_combobox.native = main_combobox
-        
+
         main_stack = QStackedWidget()
         main_stack.native = main_stack
 
@@ -757,14 +823,14 @@ class SpatialRegistrationWidget(RegistrationWidget):
         ## Path
         path_data = self.make_file_search(
             label="Common path to images", filter=None, where="path_data_file"
-        )        
+        )
 
         trsf_paths = self.make_file_search(
             label="Path to save transformations",
             filter=None,
             where="trsf_paths",
             default="",
-            mode='d'
+            mode="d",
         )
 
         out_pattern = self.make_text_edit(
@@ -773,41 +839,23 @@ class SpatialRegistrationWidget(RegistrationWidget):
             default="_registered",
         )
         global_path_tab = widgets.Container(
-            widgets=[
-                path_data,
-                trsf_paths,
-                out_pattern
-            ]
+            widgets=[path_data, trsf_paths, out_pattern]
         )
 
         ## Transformations types
         trsf_types_label = widgets.Label(value="Transformations types")
-        rigid = self.make_tick_box(
-            "Rigid",
-            True,
-            where="rigid"
-        )
-        affine = self.make_tick_box(
-            "Affine",
-            True,
-            where="affine"
-        )
+        rigid = self.make_tick_box("Rigid", True, where="rigid")
+        affine = self.make_tick_box("Affine", True, where="affine")
         vectorfield = self.make_tick_box(
-            "Non Linear",
-            False,
-            where="vectorfield"
+            "Non Linear", False, where="vectorfield"
         )
-        out_voxel = self.make_voxel_label("Output voxel size", "{axis}_out_vox")
+        out_voxel = self.make_voxel_label(
+            "Output voxel size", "{axis}_out_vox"
+        )
         global_trsf_tab = widgets.Container(
-            widgets=[
-                trsf_types_label,
-                rigid,
-                affine,
-                vectorfield,
-                out_voxel
-            ], labels=False
+            widgets=[trsf_types_label, rigid, affine, vectorfield, out_voxel],
+            labels=False,
         )
-        
 
         ## Advanced parameters
         registration_depth_label = widgets.Label(
@@ -822,7 +870,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
         init_trsf_real_unit = self.make_tick_box(
             "Initial transformation in real units",
             True,
-            where="init_trsf_real_unit"
+            where="init_trsf_real_unit",
         )
 
         image_interpolation_label = widgets.Label(value="Interpolation type")
@@ -830,31 +878,24 @@ class SpatialRegistrationWidget(RegistrationWidget):
             value="linear", choices=["linear", "cspline"]
         )
         image_interpolation = widgets.Container(
-            widgets=[image_interpolation_label, self.image_interpolation], labels=False
+            widgets=[image_interpolation_label, self.image_interpolation],
+            labels=False,
         )
 
         apply_trsf = self.make_tick_box(
-            "Apply transformation",
-            True,
-            "apply_trsf"
+            "Apply transformation", True, "apply_trsf"
         )
 
         compute_trsf = self.make_tick_box(
-            "Compute transformations",
-            True,
-            "compute_trsf"
+            "Compute transformations", True, "compute_trsf"
         )
 
         copy_ref = self.make_tick_box(
-            "Make a copy of the reference image",
-            False,
-            "copy_ref"
+            "Make a copy of the reference image", False, "copy_ref"
         )
 
         bbox_out = self.make_tick_box(
-            "Build a fully englobing resulting frame",
-            False,
-            "bbox_out"
+            "Build a fully englobing resulting frame", False, "bbox_out"
         )
 
         global_advanced_tab = widgets.Container(
@@ -871,10 +912,10 @@ class SpatialRegistrationWidget(RegistrationWidget):
         )
         global_advanced_tab.native.layout().setSpacing(0)
         global_advanced_tab.native.layout().setContentsMargins(0, 0, 0, 0)
-        
+
         global_path_tab.native.layout().setSpacing(0)
         global_path_tab.native.layout().setContentsMargins(0, 0, 0, 0)
-        
+
         global_trsf_tab.native.layout().setSpacing(0)
         global_trsf_tab.native.layout().setContentsMargins(0, 0, 0, 0)
 
@@ -883,8 +924,6 @@ class SpatialRegistrationWidget(RegistrationWidget):
         global_tab.addTab(global_trsf_tab.native, "Trsf types")
         global_tab.addTab(global_advanced_tab.native, "Advanced")
 
-
-
         # Reference
         ref_im = self.make_text_edit(
             label="Reference image name",
@@ -892,56 +931,70 @@ class SpatialRegistrationWidget(RegistrationWidget):
             default="image_0.tiff",
         )
 
-        ref_voxel = self.make_voxel_label("Reference voxel size", where="{axis}_vox")
+        ref_voxel = self.make_voxel_label(
+            "Reference voxel size", where="{axis}_vox"
+        )
 
         ref_im.native.layout().setSpacing(0)
         ref_im.native.layout().setContentsMargins(0, 0, 0, 0)
         ref_voxel.native.layout().setSpacing(0)
         ref_voxel.native.layout().setContentsMargins(0, 0, 0, 0)
 
-        ref_tab = widgets.Container(
-            widgets=[
-                ref_im,
-                ref_voxel
-            ]
-        )
+        ref_tab = widgets.Container(widgets=[ref_im, ref_voxel])
         ref_tab.native.layout().setSpacing(0)
         ref_tab.native.layout().setContentsMargins(0, 0, 0, 0)
-
 
         main_stack.addWidget(global_tab)
         main_stack.addWidget(ref_tab.native)
 
         # Floating images
         for i in range(5):
-            angle = self.make_angle_tab(i+1)
+            angle = self.make_angle_tab(i + 1)
             main_stack.addWidget(angle.native)
 
         save_manual_setup = self.make_button(
             "Save parameters", self._save_json
         )
         test_init = self.make_tick_box(
-            "Only test initial transformation",
-            False,
-            "test_init"
+            "Only test initial transformation", False, "test_init"
         )
         start_reg_manual = self.make_button("Run!", self._on_click_manual)
 
         main_combobox.currentIndexChanged.connect(main_stack.setCurrentIndex)
-        main_combobox.name = 'main_combobox'
-        main_stack.name = 'main_stack'
-        main_control = widgets.Container(widgets=[
+        main_combobox.name = "main_combobox"
+        main_stack.name = "main_stack"
+        main_control = widgets.Container(
+            widgets=[
                 main_combobox,
                 main_stack,
-            ], labels=False
+            ],
+            labels=False,
         )
-        
+
         manual_controler = widgets.Container(
-            widgets=[main_control, test_init, save_manual_setup, start_reg_manual],
+            widgets=[
+                main_control,
+                test_init,
+                save_manual_setup,
+                start_reg_manual,
+            ],
             labels=False,
         )
 
         return manual_controler
+
+    def _check_binaries(self):
+        binary_list = [
+            "applyTrsf",
+            "blockmatching",
+            "changeMultipleTrsfs",
+            "invTrsf",
+        ]
+        missed_binaries = []
+        for bin in binary_list:
+            if which(bin) is None:
+                missed_binaries.append(bin)
+        return missed_binaries
 
     def __init__(self, napari_viewer):
         super().__init__(napari_viewer)
