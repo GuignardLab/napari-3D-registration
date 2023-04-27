@@ -156,6 +156,8 @@ class RegistrationWidget(QWidget):
             if k in self.link_to_parameters and hasattr(
                 self.link_to_parameters[k], "value"
             ):
+                if isinstance(v, list):
+                    v = v[0]
                 self.link_to_parameters[k].value = v
             ## Parameters that are lists of parameters
             elif isinstance(self.link_to_parameters[k], list) and all(
@@ -344,7 +346,7 @@ class TimeRegistrationWidget(RegistrationWidget):
     def make_manual_parameterization(self):
         ### Paths definition
         path_data = self.make_file_search(
-            label="Path to images", filter=None, where="path_data_file"
+            label="Path to images", filter="", where="path_data_file", mode="d"
         )
         file_name = self.make_text_edit(
             label="File format",
@@ -352,16 +354,17 @@ class TimeRegistrationWidget(RegistrationWidget):
             default="image{t:03d}.tiff",
         )
         trsf_folder = self.make_file_search(
-            label="Trsf folder", filter="", where="trsf_folder"
+            label="Trsf folder", filter="", where="trsf_folder", mode="d"
         )
         output_path = self.make_file_search(
             label="Output Format",
             filter="",
             where="output_path",
             default="_registered",
+            mode="w"
         )
         projection_path = self.make_file_search(
-            label="Path to projection", filter="", where="projection_path"
+            label="Path to projection", filter="", where="projection_path", mode="d"
         )
         path_tab = widgets.Container(
             widgets=[
@@ -530,7 +533,8 @@ class SpatialRegistrationWidget(RegistrationWidget):
             "out_voxel": [self.x_out_vox, self.y_out_vox, self.z_out_vox],
             "out_pattern": self.out_pattern,
             "path_to_bin": "",
-            "registration_depth": self.registration_depth,
+            "registration_depth_end": self.registration_depth_end,
+            "registration_depth_start": self.registration_depth_start,
             "init_trsf_real_unit": True,
             "image_interpolation": self.image_interpolation,
             "apply_trsf": self.apply_trsf,
@@ -586,13 +590,9 @@ class SpatialRegistrationWidget(RegistrationWidget):
     @flo_ims.setter
     def flo_ims(self, value):
         self._flo_ims = value
-        angle_number = 0
-        for i in range(5):
-            if self.__dict__[f"to_use_{i+1}"].value:
-                self.__dict__[f"flo_im_{i+1}".lower()].value = value[
-                    angle_number
-                ]
-                angle_number += 1
+        for angle_number, v in enumerate(value):
+            self.__dict__[f"to_use_{angle_number+1}"].value = True
+            self.__dict__[f"flo_im_{angle_number+1}".lower()].value = v
 
     @property
     def flo_voxels(self):
@@ -610,14 +610,10 @@ class SpatialRegistrationWidget(RegistrationWidget):
     @flo_voxels.setter
     def flo_voxels(self, value):
         self._flo_voxels = value
-        angle_number = 0
-        for i in range(5):
-            if self.__dict__[f"to_use_{i+1}"].value:
-                for axis_pos, axis in enumerate(["x", "y", "z"]):
-                    self.__dict__[f"{axis}_vox_flo_{i+1}"].value = value[
-                        angle_number
-                    ][axis_pos]
-                angle_number += 1
+        for angle_number, v in enumerate(value):
+            self.__dict__[f"to_use_{angle_number+1}"].value = True
+            for axis_pos, axis in enumerate(["x", "y", "z"]):
+                self.__dict__[f"{axis}_vox_flo_{angle_number+1}"].value = v[axis_pos]
 
     @property
     def init_trsfs(self):
@@ -682,7 +678,11 @@ class SpatialRegistrationWidget(RegistrationWidget):
 
     def _on_click_manual(self):
         params = self.parameters
-        params["trsf_paths"] = [params["trsf_paths"]]
+        nb_angles = 0
+        for i in range(5):
+            if self.__dict__[f"to_use_{i+1}"].value:
+                nb_angles += 1
+        params["trsf_paths"] = [params["trsf_paths"]]*nb_angles
         tr = SpatialRegistration(params)
         tr.run_trsf()
         p = tr.params[0]
@@ -890,12 +890,21 @@ class SpatialRegistrationWidget(RegistrationWidget):
         )
 
         ## Advanced parameters
-        registration_depth_label = widgets.Label(
+        registration_depth_start_label = widgets.Label(
             value="Registration depth start:"
         )
-        self.registration_depth = widgets.IntText(value=3, min=1, max=5)
-        registration_depth = widgets.Container(
-            widgets=[registration_depth_label, self.registration_depth],
+        self.registration_depth_start = widgets.IntText(value=6, min=2, max=6)
+        registration_depth_start = widgets.Container(
+            widgets=[registration_depth_start_label, self.registration_depth_start],
+            layout="horizontal",
+            labels=False,
+        )
+        registration_depth_end_label = widgets.Label(
+            value="Registration depth end:"
+        )
+        self.registration_depth_end = widgets.IntText(value=3, min=1, max=5)
+        registration_depth_end = widgets.Container(
+            widgets=[registration_depth_end_label, self.registration_depth_end],
             layout="horizontal",
             labels=False,
         )
@@ -932,7 +941,8 @@ class SpatialRegistrationWidget(RegistrationWidget):
 
         global_advanced_tab = widgets.Container(
             widgets=[
-                registration_depth,
+                registration_depth_start,
+                registration_depth_end,
                 init_trsf_real_unit,
                 image_interpolation,
                 apply_trsf,
