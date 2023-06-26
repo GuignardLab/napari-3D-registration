@@ -110,21 +110,27 @@ class RegistrationWidget(QWidget):
     def make_voxel_label(self, label="Voxel size", where="{axis}_vox"):
         vox_label = widgets.Label(value=label)
         x_label = widgets.Label(value="x")
-        self.__dict__[where.format(axis="x")] = widgets.FloatText(value=1, min=0, max=100, step=1e-5)
+        self.__dict__[where.format(axis="x")] = widgets.FloatText(
+            value=1, min=0, max=100, step=1e-5
+        )
         cont_x = widgets.Container(
             widgets=[x_label, self.__dict__[where.format(axis="x")]],
             layout="horizontal",
             labels=False,
         )
         y_label = widgets.Label(value="y")
-        self.__dict__[where.format(axis="y")] = widgets.FloatText(value=1, min=0, max=100, step=1e-5)
+        self.__dict__[where.format(axis="y")] = widgets.FloatText(
+            value=1, min=0, max=100, step=1e-5
+        )
         cont_y = widgets.Container(
             widgets=[y_label, self.__dict__[where.format(axis="y")]],
             layout="horizontal",
             labels=False,
         )
         z_label = widgets.Label(value="z")
-        self.__dict__[where.format(axis="z")] = widgets.FloatText(value=6, min=0, max=100, step=1e-5)
+        self.__dict__[where.format(axis="z")] = widgets.FloatText(
+            value=6, min=0, max=100, step=1e-5
+        )
         cont_z = widgets.Container(
             widgets=[z_label, self.__dict__[where.format(axis="z")]],
             layout="horizontal",
@@ -181,7 +187,12 @@ class RegistrationWidget(QWidget):
         )
         if fileName:
             with open(fileName, "w") as f:
-                json.dump(self.parameters, f)
+                tmp = self.parameters.copy()
+                if "trsf_paths" in tmp:
+                    tmp["trsf_paths"] = [tmp["trsf_paths"]] * len(
+                        tmp["flo_ims"]
+                    )
+                json.dump(tmp, f, indent=2)
 
     @abstractmethod
     def make_manual_parameterization(self):
@@ -290,12 +301,12 @@ class TimeRegistrationWidget(RegistrationWidget):
         else:
             self._low_th = self.low_th_val.value
         return self._low_th
-    
+
     @low_th.setter
     def low_th(self, value):
         self._low_th = value
         self.low_th_val.value = int(value if value else 0)
-        self.low_th_bool.value = bool(value!=0)
+        self.low_th_bool.value = bool(value != 0)
 
     def _on_click_manual(self):
         tr = TimeRegistration(self.parameters)
@@ -307,18 +318,32 @@ class TimeRegistrationWidget(RegistrationWidget):
                 num_e = p.file_name.find("}") + 1
                 f_name = p.file_name.replace(p.file_name[num_s:num_e], "")
                 proj_name = f_name.replace(p.im_ext, "{:s}Projection.tif")
-                im_xy = imread(
-                    p_to_data + proj_name.format("xy")
-                ).transpose(2, 1, 0)
-                im_xz = imread(
-                    p_to_data + proj_name.format("xz")
-                ).transpose(2, 1, 0)
-                im_yz = imread(
-                    p_to_data + proj_name.format("yz")
-                ).transpose(2, 1, 0)
-                self.viewer.add_image(im_xy, name=proj_name.format("xy"), scale=(1, p.voxel_size_out[1], p.voxel_size_out[0]))
-                self.viewer.add_image(im_yz, name=proj_name.format("xz"), scale=(1, p.voxel_size_out[2], p.voxel_size_out[1]), visible=False)
-                self.viewer.add_image(im_xz, name=proj_name.format("yz"), scale=(1, p.voxel_size_out[2], p.voxel_size_out[0]), visible=False)
+                im_xy = imread(p_to_data + proj_name.format("xy")).transpose(
+                    2, 1, 0
+                )
+                im_xz = imread(p_to_data + proj_name.format("xz")).transpose(
+                    2, 1, 0
+                )
+                im_yz = imread(p_to_data + proj_name.format("yz")).transpose(
+                    2, 1, 0
+                )
+                self.viewer.add_image(
+                    im_xy,
+                    name=proj_name.format("xy"),
+                    scale=(1, p.voxel_size_out[1], p.voxel_size_out[0]),
+                )
+                self.viewer.add_image(
+                    im_yz,
+                    name=proj_name.format("xz"),
+                    scale=(1, p.voxel_size_out[2], p.voxel_size_out[1]),
+                    visible=False,
+                )
+                self.viewer.add_image(
+                    im_xz,
+                    name=proj_name.format("yz"),
+                    scale=(1, p.voxel_size_out[2], p.voxel_size_out[0]),
+                    visible=False,
+                )
 
     def _on_click_file(self):
         tr = TimeRegistration(self.json_file.value)
@@ -330,18 +355,32 @@ class TimeRegistrationWidget(RegistrationWidget):
             num_e = p.file_name.find("}") + 1
             f_name = p.file_name.replace(p.file_name[num_s:num_e], "")
             proj_name = f_name.replace(p.im_ext, "{:s}Projection.tif")
-            im_xy = imread(
-                p_to_data + proj_name.format("xy")
-            ).transpose(2, 1, 0)
-            im_xz = imread(
-                p_to_data + proj_name.format("xz")
-            ).transpose(2, 1, 0)
-            im_yz = imread(
-                p_to_data + proj_name.format("yz")
-            ).transpose(2, 1, 0)
-            self.viewer.add_image(im_xy, name=proj_name.format("xy"), scale=(1, p.voxel_size_out[1], p.voxel_size_out[0]))
-            self.viewer.add_image(im_yz, name=proj_name.format("xz"), scale=(1, p.voxel_size_out[2], p.voxel_size_out[1]), visible=False)
-            self.viewer.add_image(im_xz, name=proj_name.format("yz"), scale=(1, p.voxel_size_out[2], p.voxel_size_out[0]), visible=False)
+            im_xy = imread(p_to_data + proj_name.format("xy")).transpose(
+                2, 1, 0
+            )
+            im_xz = imread(p_to_data + proj_name.format("xz")).transpose(
+                2, 1, 0
+            )
+            im_yz = imread(p_to_data + proj_name.format("yz")).transpose(
+                2, 1, 0
+            )
+            self.viewer.add_image(
+                im_xy,
+                name=proj_name.format("xy"),
+                scale=(1, p.voxel_size_out[1], p.voxel_size_out[0]),
+            )
+            self.viewer.add_image(
+                im_yz,
+                name=proj_name.format("xz"),
+                scale=(1, p.voxel_size_out[2], p.voxel_size_out[1]),
+                visible=False,
+            )
+            self.viewer.add_image(
+                im_xz,
+                name=proj_name.format("yz"),
+                scale=(1, p.voxel_size_out[2], p.voxel_size_out[0]),
+                visible=False,
+            )
 
     def make_manual_parameterization(self):
         ### Paths definition
@@ -361,10 +400,13 @@ class TimeRegistrationWidget(RegistrationWidget):
             filter="",
             where="output_path",
             default="_registered",
-            mode="w"
+            mode="w",
         )
         projection_path = self.make_file_search(
-            label="Path to projection", filter="", where="projection_path", mode="d"
+            label="Path to projection",
+            filter="",
+            where="projection_path",
+            mode="d",
         )
         path_tab = widgets.Container(
             widgets=[
@@ -440,7 +482,9 @@ class TimeRegistrationWidget(RegistrationWidget):
             "Time points to skip:", "no_tp", "[]", eval_val=True
         )
         pre2D = self.make_tick_box("Pre 2D registration", False, where="pre2D")
-        low_th = self.make_tick_box("Low threshold", False, where="low_th_bool")
+        low_th = self.make_tick_box(
+            "Low threshold", False, where="low_th_bool"
+        )
         low_th_value_label = widgets.Label(value="Low threshold value:")
         self.low_th_val = widgets.IntText(value=250)
         low_th_value = widgets.Container(
@@ -542,7 +586,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
             "test_init": self.test_init,
             "begin": 1,
             "end": 1,
-            "time_tag": "TM",
+            "time_tag": None,
             "bdv_unit": "microns",
             "do_bdv": False,
             "copy_ref": self.copy_ref,
@@ -613,7 +657,9 @@ class SpatialRegistrationWidget(RegistrationWidget):
         for angle_number, v in enumerate(value):
             self.__dict__[f"to_use_{angle_number+1}"].value = True
             for axis_pos, axis in enumerate(["x", "y", "z"]):
-                self.__dict__[f"{axis}_vox_flo_{angle_number+1}"].value = v[axis_pos]
+                self.__dict__[f"{axis}_vox_flo_{angle_number+1}"].value = v[
+                    axis_pos
+                ]
 
     @property
     def init_trsfs(self):
@@ -682,7 +728,9 @@ class SpatialRegistrationWidget(RegistrationWidget):
         for i in range(5):
             if self.__dict__[f"to_use_{i+1}"].value:
                 nb_angles += 1
-        params["trsf_paths"] = [params["trsf_paths"]]*nb_angles
+        params["trsf_paths"] = [
+            params["trsf_paths"],
+        ] * nb_angles
         tr = SpatialRegistration(params)
         tr.run_trsf()
         p = tr.params[0]
@@ -691,12 +739,16 @@ class SpatialRegistrationWidget(RegistrationWidget):
         color_maps = [
             "magenta",
             "cyan",
-            "bop blue",
             "bop orange",
+            "bop blue",
             "bop purple",
         ]
         self.viewer.add_image(
-            ref, colormap="gray", scale=vox, name="Reference", opacity=0.5
+            ref,
+            colormap="gray",
+            scale=vox,
+            name="Reference",
+            blending="additive",
         )
         flos = []
         for i, p_flo in enumerate(p.flo_outs):
@@ -707,7 +759,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
                 colormap=color_maps[i % len(color_maps)],
                 scale=vox,
                 name=f"Floating {i+1}",
-                opacity=0.5,
+                blending="additive",
             )
 
     def _on_click_file(self):
@@ -719,12 +771,16 @@ class SpatialRegistrationWidget(RegistrationWidget):
         color_maps = [
             "magenta",
             "cyan",
-            "bop blue",
             "bop orange",
+            "bop blue",
             "bop purple",
         ]
         self.viewer.add_image(
-            ref, colormap="gray", scale=vox, name=f"Reference", opacity=0.5
+            ref,
+            colormap="gray",
+            scale=vox,
+            name=f"Reference",
+            blending="additive",
         )
         flos = []
         for i, p_flo in enumerate(p.flo_outs):
@@ -735,7 +791,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
                 colormap=color_maps[i % len(color_maps)],
                 scale=vox,
                 name=f"Floating {i+1}",
-                opacity=0.5,
+                blending="additive",
             )
 
     def make_trans(self, label, where, min, max):
@@ -839,7 +895,6 @@ class SpatialRegistrationWidget(RegistrationWidget):
         return angle_i
 
     def make_manual_parameterization(self):
-
         main_combobox = QComboBox()
         main_combobox.addItem("Global parameters")
         main_combobox.addItem("Reference")
@@ -895,7 +950,10 @@ class SpatialRegistrationWidget(RegistrationWidget):
         )
         self.registration_depth_start = widgets.IntText(value=6, min=2, max=6)
         registration_depth_start = widgets.Container(
-            widgets=[registration_depth_start_label, self.registration_depth_start],
+            widgets=[
+                registration_depth_start_label,
+                self.registration_depth_start,
+            ],
             layout="horizontal",
             labels=False,
         )
@@ -904,7 +962,10 @@ class SpatialRegistrationWidget(RegistrationWidget):
         )
         self.registration_depth_end = widgets.IntText(value=3, min=1, max=5)
         registration_depth_end = widgets.Container(
-            widgets=[registration_depth_end_label, self.registration_depth_end],
+            widgets=[
+                registration_depth_end_label,
+                self.registration_depth_end,
+            ],
             layout="horizontal",
             labels=False,
         )
