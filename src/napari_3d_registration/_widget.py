@@ -591,6 +591,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
             "do_bdv": False,
             "copy_ref": self.copy_ref,
             "bbox_out": self.bbox_out,
+            "recompute": True,
         }
         return self._link_to_parameters
 
@@ -671,18 +672,6 @@ class SpatialRegistrationWidget(RegistrationWidget):
                 for axis in ["X", "Y", "Z"]:
                     if self.__dict__[f"{axis}_flip_{i+1}".lower()].value:
                         init_trsf.extend(["flip", f"{axis}"])
-                # Translation
-                for axis in ["X", "Y", "Z"]:
-                    if self.__dict__[f"trans_{axis}_{i+1}".lower()].value != 0:
-                        init_trsf.extend(
-                            [
-                                "trans",
-                                f"{axis}",
-                                self.__dict__[
-                                    f"trans_{axis}_{i+1}".lower()
-                                ].value,
-                            ]
-                        )
                 # Rotation
                 for axis in ["X", "Y", "Z"]:
                     if self.__dict__[f"rot_{axis}_{i+1}".lower()].value != 0:
@@ -692,6 +681,18 @@ class SpatialRegistrationWidget(RegistrationWidget):
                                 f"{axis}",
                                 self.__dict__[
                                     f"rot_{axis}_{i+1}".lower()
+                                ].value,
+                            ]
+                        )
+                # Translation
+                for axis in ["X", "Y", "Z"]:
+                    if self.__dict__[f"trans_{axis}_{i+1}".lower()].value != 0:
+                        init_trsf.extend(
+                            [
+                                "trans",
+                                f"{axis}",
+                                self.__dict__[
+                                    f"trans_{axis}_{i+1}".lower()
                                 ].value,
                             ]
                         )
@@ -732,6 +733,7 @@ class SpatialRegistrationWidget(RegistrationWidget):
             params["trsf_paths"],
         ] * nb_angles
         tr = SpatialRegistration(params)
+        print(self.init_trsfs)
         tr.run_trsf()
         p = tr.params[0]
         ref = imread(p.ref_out)
