@@ -234,9 +234,15 @@ class RegistrationWidget(QWidget):
         ## json file parameterization:
         json = self.make_file_search("Parameter file", "*.json", "json_file")
         json.changed.connect(self._propagate_json)
+        clear_tick = self.make_tick_box("Clear\nImages", default=False, where="clear_file")
         start_reg = self.make_button("Run!", self._on_click_file)
+        run_box = widgets.Container(
+            widgets=[clear_tick, start_reg],
+            labels=False,
+            layout="horizontal"
+        )
         self.file_params = widgets.Container(
-            widgets=[json, start_reg], labels=False
+            widgets=[json, run_box], labels=False
         )
         self.file_params.native.layout().addStretch(1)
 
@@ -309,6 +315,9 @@ class TimeRegistrationWidget(RegistrationWidget):
         self.low_th_bool.value = bool(value != 0)
 
     def _on_click_manual(self):
+        if self.clear_manual:
+            for l in self.viewer.layers[:]:
+                self.viewer.layers.remove(l)
         tr = TimeRegistration(self.parameters)
         tr.run_trsf()
         for p in tr.params:
@@ -346,6 +355,9 @@ class TimeRegistrationWidget(RegistrationWidget):
                 )
 
     def _on_click_file(self):
+        if self.clear_file:
+            for l in self.viewer.layers[:]:
+                self.viewer.layers.remove(l)
         tr = TimeRegistration(self.json_file.value)
         tr.run_trsf()
         p = tr.params[0]
@@ -527,8 +539,17 @@ class TimeRegistrationWidget(RegistrationWidget):
         save_manual_setup = self.make_button(
             "Save parameters", self._save_json
         )
-        start_reg_manual = self.make_button("Run!", self._on_click_manual)
 
+        clear_tick_manual = self.make_tick_box("Clear\nImages", default=False, where="clear_manual")
+        start_reg_manual = widgets.Container(
+            widgets=[
+                clear_tick_manual,
+                self.make_button("Run!", self._on_click_manual)
+            ],
+            labels=False,
+            layout="horizontal"
+        )
+        
         sub_tab = QTabWidget()
         sub_tab.addTab(path_tab.native, "Paths")
         sub_tab.addTab(trsf_tab.native, "Trsf")
@@ -724,6 +745,9 @@ class SpatialRegistrationWidget(RegistrationWidget):
                     curr += 3
 
     def _on_click_manual(self):
+        if self.clear_manual:
+            for l in self.viewer.layers[:]:
+                self.viewer.layers.remove(l)
         params = self.parameters
         nb_angles = 0
         for i in range(5):
@@ -765,6 +789,9 @@ class SpatialRegistrationWidget(RegistrationWidget):
             )
 
     def _on_click_file(self):
+        if self.clear_file:
+            for l in self.viewer.layers[:]:
+                self.viewer.layers.remove(l)
         tr = SpatialRegistration(self.json_file.value)
         tr.run_trsf()
         p = tr.params[0]
@@ -1063,7 +1090,18 @@ class SpatialRegistrationWidget(RegistrationWidget):
         test_init = self.make_tick_box(
             "Only test initial transformation", False, "test_init"
         )
-        start_reg_manual = self.make_button("Run!", self._on_click_manual)
+
+        clear_tick_manual = self.make_tick_box("Clear\nImages", default=False, where="clear_manual")
+        start_reg_manual = widgets.Container(
+            widgets=[
+                clear_tick_manual,
+                self.make_button("Run!", self._on_click_manual)
+            ],
+            labels=False,
+            layout="horizontal"
+        )
+        
+        # start_reg_manual = self.make_button("Run!", self._on_click_manual)
 
         main_combobox.currentIndexChanged.connect(main_stack.setCurrentIndex)
         main_combobox.name = "main_combobox"
