@@ -6,8 +6,9 @@ see: https://napari.org/stable/plugins/guides.html?#widgets
 
 Replace code below according to your needs.
 """
+
 from abc import abstractproperty, abstractmethod
-from typing import TYPE_CHECKING
+import warnings
 
 from magicgui import widgets
 from qtpy.QtWidgets import (
@@ -153,12 +154,18 @@ class RegistrationWidget(QWidget):
     def _propagate_json(self):
         with open(self.json_file.value) as f:
             json_params = json.load(f)
-        if "voxel_size" in json_params and not "voxel_size_out" in json_params:
+        if "voxel_size" in json_params and "voxel_size_out" not in json_params:
             json_params["voxel_size_out"] = json_params["voxel_size"]
-        if "ref_voxel" in json_params and not "out_voxel" in json_params:
+        if "ref_voxel" in json_params and "out_voxel" not in json_params:
             json_params["out_voxel"] = json_params["ref_voxel"]
         for k, v in json_params.items():
             ## Classic parameters
+            if k not in self.link_to_parameters:
+                warnings.warn(
+                    f"The parameter `{k}` has been ignored (not supported in the plugin)",
+                    UserWarning,
+                )
+                continue
             if k in self.link_to_parameters and hasattr(
                 self.link_to_parameters[k], "value"
             ):
@@ -234,12 +241,12 @@ class RegistrationWidget(QWidget):
         ## json file parameterization:
         json = self.make_file_search("Parameter file", "*.json", "json_file")
         json.changed.connect(self._propagate_json)
-        clear_tick = self.make_tick_box("Clear\nImages", default=False, where="clear_file")
+        clear_tick = self.make_tick_box(
+            "Clear\nImages", default=False, where="clear_file"
+        )
         start_reg = self.make_button("Run!", self._on_click_file)
         run_box = widgets.Container(
-            widgets=[clear_tick, start_reg],
-            labels=False,
-            layout="horizontal"
+            widgets=[clear_tick, start_reg], labels=False, layout="horizontal"
         )
         self.file_params = widgets.Container(
             widgets=[json, run_box], labels=False
@@ -316,8 +323,8 @@ class TimeRegistrationWidget(RegistrationWidget):
 
     def _on_click_manual(self):
         if self.clear_manual:
-            for l in self.viewer.layers[:]:
-                self.viewer.layers.remove(l)
+            for layer in self.viewer.layers[:]:
+                self.viewer.layers.remove(layer)
         tr = TimeRegistration(self.parameters)
         tr.run_trsf()
         for p in tr.params:
@@ -356,8 +363,8 @@ class TimeRegistrationWidget(RegistrationWidget):
 
     def _on_click_file(self):
         if self.clear_file:
-            for l in self.viewer.layers[:]:
-                self.viewer.layers.remove(l)
+            for layer in self.viewer.layers[:]:
+                self.viewer.layers.remove(layer)
         tr = TimeRegistration(self.json_file.value)
         tr.run_trsf()
         p = tr.params[0]
@@ -540,16 +547,18 @@ class TimeRegistrationWidget(RegistrationWidget):
             "Save parameters", self._save_json
         )
 
-        clear_tick_manual = self.make_tick_box("Clear\nImages", default=False, where="clear_manual")
+        clear_tick_manual = self.make_tick_box(
+            "Clear\nImages", default=False, where="clear_manual"
+        )
         start_reg_manual = widgets.Container(
             widgets=[
                 clear_tick_manual,
-                self.make_button("Run!", self._on_click_manual)
+                self.make_button("Run!", self._on_click_manual),
             ],
             labels=False,
-            layout="horizontal"
+            layout="horizontal",
         )
-        
+
         sub_tab = QTabWidget()
         sub_tab.addTab(path_tab.native, "Paths")
         sub_tab.addTab(trsf_tab.native, "Trsf")
@@ -746,8 +755,8 @@ class SpatialRegistrationWidget(RegistrationWidget):
 
     def _on_click_manual(self):
         if self.clear_manual:
-            for l in self.viewer.layers[:]:
-                self.viewer.layers.remove(l)
+            for layer in self.viewer.layers[:]:
+                self.viewer.layers.remove(layer)
         params = self.parameters
         nb_angles = 0
         for i in range(5):
@@ -790,8 +799,8 @@ class SpatialRegistrationWidget(RegistrationWidget):
 
     def _on_click_file(self):
         if self.clear_file:
-            for l in self.viewer.layers[:]:
-                self.viewer.layers.remove(l)
+            for layer in self.viewer.layers[:]:
+                self.viewer.layers.remove(layer)
         tr = SpatialRegistration(self.json_file.value)
         tr.run_trsf()
         p = tr.params[0]
@@ -804,24 +813,28 @@ class SpatialRegistrationWidget(RegistrationWidget):
             "bop blue",
             "bop purple",
         ]
-        self.viewer.add_image(
-            ref,
-            colormap="gray",
-            scale=vox,
-            name=f"Reference",
-            blending="additive",
-        )
+        self.to_clear = [
+            self.viewer.add_image(
+                ref,
+                colormap="gray",
+                scale=vox,
+                name="Reference",
+                blending="additive",
+            )
+        ]
         flos = []
         for i, p_flo in enumerate(p.flo_outs):
             im = imread(p_flo)
             flos.append(im)
-            self.viewer.add_image(
-                im,
-                colormap=color_maps[i % len(color_maps)],
-                scale=vox,
-                name=f"Floating {i+1}",
-                blending="additive",
-            )
+            self.to_clear = [
+                self.viewer.add_image(
+                    im,
+                    colormap=color_maps[i % len(color_maps)],
+                    scale=vox,
+                    name=f"Floating {i+1}",
+                    blending="additive",
+                )
+            ]
 
     def make_trans(self, label, where, min, max):
         trans_label = widgets.Label(value=label)
@@ -1091,16 +1104,18 @@ class SpatialRegistrationWidget(RegistrationWidget):
             "Only test initial transformation", False, "test_init"
         )
 
-        clear_tick_manual = self.make_tick_box("Clear\nImages", default=False, where="clear_manual")
+        clear_tick_manual = self.make_tick_box(
+            "Clear\nImages", default=False, where="clear_manual"
+        )
         start_reg_manual = widgets.Container(
             widgets=[
                 clear_tick_manual,
-                self.make_button("Run!", self._on_click_manual)
+                self.make_button("Run!", self._on_click_manual),
             ],
             labels=False,
-            layout="horizontal"
+            layout="horizontal",
         )
-        
+
         # start_reg_manual = self.make_button("Run!", self._on_click_manual)
 
         main_combobox.currentIndexChanged.connect(main_stack.setCurrentIndex)
